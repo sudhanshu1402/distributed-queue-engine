@@ -1,0 +1,29 @@
+{
+  "name": "distributed-queue-engine",
+  "version": "1.0.0",
+  "description": "> Redis-backed event-driven pipeline orchestrating priority queuing and horizontal worker autoscaling.",
+  "main": "index.js",
+  "scripts": {
+    "api:dev": "nodemon -w src --ext ts --exec ts-node src/api/index.ts",
+    "api:start": "ts-node src/api/index.ts",
+    "worker:dev": "nodemon -w src --ext ts --exec ts-node src/worker/index.ts",
+    "worker:start": "ts-node src/worker/index.ts",
+    "build": "tsc"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "bullmq": "^5.71.0",
+    "dotenv": "^17.3.1",
+    "express": "^5.2.1",
+    "ioredis": "^5.10.0"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/node": "^25.5.0",
+    "nodemon": "^3.1.14",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.3"
+  }
+}
