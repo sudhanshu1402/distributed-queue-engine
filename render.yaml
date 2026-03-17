@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: distributed-queue-engine
+    env: node
+    buildCommand: npm install && npm run build
+    startCommand: npm run api:start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3000
