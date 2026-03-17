@@ -5,9 +5,9 @@
   "main": "index.js",
   "scripts": {
     "api:dev": "nodemon -w src --ext ts --exec ts-node src/api/index.ts",
-    "api:start": "ts-node src/api/index.ts",
+    "api:start": "node dist/api/index.js",
     "worker:dev": "nodemon -w src --ext ts --exec ts-node src/worker/index.ts",
-    "worker:start": "ts-node src/worker/index.ts",
+    "worker:start": "node dist/worker/index.js",
     "build": "tsc",
     "test": "jest"
   },
