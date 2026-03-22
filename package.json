@@ -18,7 +18,9 @@
     "bullmq": "^5.71.0",
     "dotenv": "^17.3.1",
     "express": "^5.2.1",
-    "ioredis": "^5.10.0"
+    "ioredis": "^5.10.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.3"
   },
   "devDependencies": {
     "@types/express": "^5.0.6",
@@ -26,8 +28,6 @@
     "@types/node": "^25.5.0",
     "jest": "^30.3.0",
     "nodemon": "^3.1.14",
-    "ts-jest": "^29.4.6",
-    "ts-node": "^10.9.2",
-    "typescript": "^5.9.3"
+    "ts-jest": "^29.4.6"
   }
 }
