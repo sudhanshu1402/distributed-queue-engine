@@ -1,5 +1,7 @@
 # Distributed Queue Engine
 
+[![CI](https://github.com/sudhanshu1402/distributed-queue-engine/actions/workflows/ci.yml/badge.svg)](https://github.com/sudhanshu1402/distributed-queue-engine/actions/workflows/ci.yml) [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
 A production-grade background job processing system built on Redis and BullMQ. Decouples heavy I/O workloads from edge APIs via priority-aware queuing, exponential backoff retries, and independently scalable worker processes.
 
 ## Problem
