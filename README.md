@@ -2,7 +2,9 @@
 
 [![CI](https://github.com/sudhanshu1402/distributed-queue-engine/actions/workflows/ci.yml/badge.svg)](https://github.com/sudhanshu1402/distributed-queue-engine/actions/workflows/ci.yml) [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-A production-grade background job processing system built on Redis and BullMQ. Decouples heavy I/O workloads from edge APIs via priority-aware queuing, exponential backoff retries, and independently scalable worker processes.
+A focused reference implementation of a Redis + BullMQ background job engine: priority-aware queuing, exponential-backoff retries, and independently scalable worker processes. It decouples heavy I/O from edge APIs.
+
+> **Scope:** this is a demo of the queue/worker *mechanics*, not a shipping email service. The worker deliberately **simulates** I/O (a `setTimeout` plus a random failure in `src/worker/processor.ts`) so retries, priority routing, and scaling can be exercised end-to-end without a live SMTP provider.
 
 ## Problem
 
@@ -22,7 +24,7 @@ graph TB
     W1 --> SMTP[Upstream SMTP / External Service]
     W2 --> SMTP
     WN --> SMTP
-    W1 -->|on failure| DLQ[Dead Letter Queue]
+    W1 -->|exhausted retries| DLQ[BullMQ Failed Set]
 
     subgraph "Horizontally Scalable"
         W1

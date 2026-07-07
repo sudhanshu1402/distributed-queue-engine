@@ -1,7 +1,7 @@
 {
   "name": "distributed-queue-engine",
   "version": "1.0.0",
-  "description": "> Redis-backed event-driven pipeline orchestrating priority queuing and horizontal worker autoscaling.",
+  "description": "Redis + BullMQ background job engine demo: priority queues, exponential-backoff retries, and horizontally scalable workers.",
   "main": "index.js",
   "scripts": {
     "api:dev": "nodemon -w src --ext ts --exec ts-node src/api/index.ts",
