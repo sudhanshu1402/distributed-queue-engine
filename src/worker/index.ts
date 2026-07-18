@@ -2,6 +2,7 @@ import { Worker } from 'bullmq';
 import { connection } from '../config/redis';
 import { EMAIL_QUEUE_NAME } from '../queue/producer';
 import { processEmailJob } from './processor';
+import { registerShutdownHandlers } from './shutdown';
 import * as dotenv from 'dotenv';
 dotenv.config();
 
@@ -29,8 +30,5 @@ emailWorker.on('failed', (job, err) => {
   console.log(`❌ Job ${job?.id} failed with reason: ${err.message}`);
 });
 
-process.on('SIGINT', async () => {
-  console.log('Shutting down gracefully...');
-  await emailWorker.close();
-  process.exit(0);
-});
+// Drain in-flight jobs on both Ctrl-C (SIGINT) and orchestrator stop (SIGTERM).
+registerShutdownHandlers(emailWorker);

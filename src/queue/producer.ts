@@ -2,14 +2,12 @@ import { Queue } from 'bullmq';
 import { connection } from '../config/redis';
 
 export const EMAIL_QUEUE_NAME = '{emails}:outbound';
-export const VIDEO_QUEUE_NAME = '{video}:transcode';
 
-// Notice the `{}` hash tags in the queue names.
+// Notice the `{}` hash tag in the queue name.
 // This is critical if we ever upgrade to a Redis Cluster configuration.
 // It forces all keys related to a specific queue onto the exact same hash slot.
 
 export const emailQueue = new Queue(EMAIL_QUEUE_NAME, { connection });
-export const videoQueue = new Queue(VIDEO_QUEUE_NAME, { connection });
 
 export const enqueueEmail = async (userId: string, type: string) => {
   return await emailQueue.add(
