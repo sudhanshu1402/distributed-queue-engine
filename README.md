@@ -2,15 +2,15 @@
 
 [![CI](https://github.com/sudhanshu1402/distributed-queue-engine/actions/workflows/ci.yml/badge.svg)](https://github.com/sudhanshu1402/distributed-queue-engine/actions/workflows/ci.yml) [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-A focused reference implementation of a Redis + BullMQ background job engine: priority-aware queuing, exponential-backoff retries, and independently scalable worker processes. It decouples heavy I/O from edge APIs.
+A reference implementation of a Redis + BullMQ background job engine: priority-aware queuing, exponential-backoff retries, and worker processes that scale independently of the API. It exists to move slow I/O off the request path.
 
-> **Scope:** this is a demo of the queue/worker *mechanics*, not a shipping email service. The worker deliberately **simulates** I/O (a `setTimeout` plus a random failure in `src/worker/processor.ts`) so retries, priority routing, and scaling can be exercised end-to-end without a live SMTP provider.
+> **Scope note:** this demonstrates the queue and worker *mechanics*, not a real email service. The worker deliberately **simulates** I/O — a `setTimeout` plus a random failure in `src/worker/processor.ts` — so retries, priority routing, and scaling can be exercised end to end without a live SMTP provider. Swap `createEmailProcessor` for a real send call and the plumbing stays the same.
 
-## Problem
+## The problem
 
-Synchronous request handling in API servers creates cascading failures under load. A password reset email that takes 2s to send blocks the thread, degrades p99 latency, and creates a single point of failure when the upstream SMTP provider is slow or down.
+Sending email inline blocks the request. A password-reset send that takes 2s holds the connection open, pushes up p99 latency, and turns a slow SMTP provider into a slow API. Under load that compounds.
 
-This engine moves all heavy I/O to a fault-tolerant queue layer -- the API responds in <5ms regardless of downstream health.
+Pushing the work to a queue decouples the two: the API enqueues and returns `202` immediately, and workers do the slow part on their own schedule and their own machines.
 
 ## Architecture
 
@@ -37,93 +37,122 @@ graph TB
     style DLQ fill:#92400e,color:#fff
 ```
 
-**Key architectural decisions:**
-- **Process isolation**: API and workers run as separate OS processes. Scaling workers does not require scaling API pods.
-- **Redis hash slots**: Queue names use `{hash_tag}` notation (`{emails}:outbound`) ensuring all keys for a queue land on the same Redis Cluster shard -- required for atomic operations across related keys.
-- **Priority routing**: Critical jobs (password resets) use priority `1`; bulk jobs use priority `10`. BullMQ's sorted-set-backed priority queue ensures critical jobs are dequeued first without starving lower-priority work.
+The API (`src/api`) and the worker (`src/worker`) are separate entry points that share only the queue definition and Redis connection config. They run as separate processes and, in production, separate containers.
 
-## Tech Stack
+**Design choices worth calling out:**
 
-| Technology | Why |
+- **Process isolation.** API and workers are independent OS processes (separate `npm` scripts, separate `CMD`). You scale workers for throughput without touching the API tier.
+- **Cluster-ready queue names.** The queue is named `{emails}:outbound`. The `{}` hash tag forces every key for the queue onto the same Redis Cluster hash slot, which is what BullMQ's multi-key Lua operations need if you ever move from a single node to a cluster. No code changes required later.
+- **Priority routing.** Password resets enqueue at priority `1`; everything else at `10`. BullMQ's sorted-set priority queue dequeues the urgent jobs first.
+
+## Tech stack
+
+| Technology | Why it's here |
 |---|---|
-| **BullMQ 5.x** | Battle-tested Redis-backed queue with priority support, rate limiting, and Lua-scripted atomic operations. Chosen over RabbitMQ/SQS for simplicity of deployment and sub-millisecond enqueue latency. |
-| **Redis 7 (AOF)** | Append-only file persistence ensures jobs survive restarts. Alpine image keeps container footprint under 30MB. |
-| **ioredis** | Cluster-aware Redis client with automatic pipeline batching. `maxRetriesPerRequest: null` is required for BullMQ's blocking `BRPOPLPUSH` pattern. |
-| **TypeScript** | Type safety across job payloads prevents runtime serialization bugs between producer and consumer. |
+| **BullMQ 5.x** | Redis-backed queue with priority, retries, and Lua-scripted atomic ops. Simpler to run than RabbitMQ or SQS for a self-hosted setup. |
+| **Redis 7 (AOF)** | Append-only-file persistence so queued jobs survive a restart. Runs from the `redis:7-alpine` image. |
+| **ioredis** | Cluster-aware client. `maxRetriesPerRequest: null` is set because BullMQ's blocking pop pattern requires it. |
+| **TypeScript** | Shared job-payload types keep the producer and consumer honest about what's on the wire. |
+| **Express 5** | Thin HTTP layer. Its only job is to accept a request and enqueue. |
 
-## Key Features
+## What it does
 
-- **Exponential backoff retries** -- 3 attempts with 5s base delay (5s, 10s, 20s) before dead-lettering
-- **Priority queuing** -- sorted-set-backed priority ensures critical jobs bypass bulk queues
-- **Configurable concurrency** -- workers process N jobs in parallel (default: 10) via `QUEUE_CONCURRENCY` env var
-- **Graceful shutdown** -- `SIGINT`/`SIGTERM` handlers drain in-flight jobs before process exit, preventing duplicate processing
-- **Cluster-safe queue names** -- hash-tag notation ensures Redis Cluster compatibility without code changes
-- **Memory management** -- `removeOnComplete: true` prevents unbounded Redis memory growth in high-throughput scenarios
+- **Two enqueue endpoints** — `POST /api/users/reset-password` (priority 1) and `POST /api/users/welcome` (priority 10), both returning `202` with a job ID.
+- **Exponential-backoff retries** — 3 attempts, 5s base delay (5s, 10s, 20s), then the job lands in BullMQ's failed set.
+- **Configurable concurrency** — each worker processes up to `QUEUE_CONCURRENCY` jobs in parallel (default 10).
+- **Graceful shutdown** — `SIGINT`/`SIGTERM` handlers call `worker.close()` to drain in-flight jobs before exit, so a rolling deploy or Ctrl-C doesn't drop work.
+- **Bounded Redis memory** — `removeOnComplete: true` clears successful jobs instead of letting the completed set grow forever.
 
-## Scale Considerations
+## Failure handling
 
-| Dimension | Current | Production Path |
-|---|---|---|
-| **Throughput** | ~6,600 jobs/s per worker (BullMQ benchmark) | Add workers linearly; Redis is rarely the bottleneck below 100K jobs/s |
-| **Persistence** | Redis AOF | Redis Sentinel or Cluster for HA; or swap to Upstash/ElastiCache for managed durability |
-| **Observability** | Console logging | Integrate with [otel-sdk-node](https://github.com/sudhanshu1402/otel-sdk-node) for distributed tracing across API, Queue, and Worker spans |
-| **Backpressure** | None | Add BullMQ rate limiter (`limiter: { max: 100, duration: 1000 }`) to protect downstream SMTP rate limits |
-| **Dead letters** | BullMQ default | Add DLQ consumer with alerting (PagerDuty/Slack webhook) for failed jobs |
-
-## Failure Handling
-
-1. **Transient SMTP failure** -- Job retries with exponential backoff (5s, 10s, 20s)
-2. **Persistent failure after 3 attempts** -- Job moves to BullMQ's failed set (dead letter)
-3. **Worker crash mid-processing** -- BullMQ's visibility timeout returns the job to the queue; another worker picks it up
-4. **Redis restart** -- AOF persistence recovers all pending jobs from disk
-5. **API server crash** -- Workers continue processing independently; no job loss
+1. **Transient send failure** — the job throws, BullMQ retries it with backoff.
+2. **Still failing after 3 attempts** — it moves to the failed set (the dead-letter path).
+3. **Worker crashes mid-job** — BullMQ's stalled-job recovery returns the job to the queue for another worker.
+4. **Redis restarts** — AOF replays pending jobs from disk.
+5. **API crashes** — workers keep draining the queue; nothing in flight is lost.
 
 ## Setup
 
+Needs Node 20+ and Docker (for Redis).
+
 ```bash
-# Start Redis
+# 1. Start Redis (AOF enabled, port 6379)
 docker-compose up -d
 
-# Install dependencies
+# 2. Install deps
 npm install
 
-# Run API server (port 3000)
+# 3. Run the API on :3000
 npm run api:dev
 
-# Run worker cluster (separate terminal)
+# 4. In another terminal, run a worker
 npm run worker:dev
 ```
 
+Config comes from environment variables (see `.env.example`): `REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD`, `QUEUE_CONCURRENCY`, `PORT`.
+
+## Usage
+
 ```bash
-# Test: enqueue a priority job
+# High-priority job (priority 1)
 curl -X POST http://localhost:3000/api/users/reset-password \
   -H "Content-Type: application/json" \
   -d '{"userId": "user_42"}'
+# -> {"message":"Password reset initiated asynchronously","jobId":"1"}
 
-# Response: {"message":"Password reset initiated asynchronously","jobId":"1"}
+# Standard-priority job (priority 10)
+curl -X POST http://localhost:3000/api/users/welcome \
+  -H "Content-Type: application/json" \
+  -d '{"userId": "user_42"}'
+# -> {"message":"Welcome email queued","jobId":"2"}
 ```
 
-**Production deployment:**
+The worker terminal logs each job as it's picked up, completed, or failed. Because the processor fails ~20% of the time by design, you'll see retries with backoff and the occasional job exhaust its attempts.
+
+## Tests
+
+```bash
+npm test
+```
+
+Jest + ts-jest, no live Redis needed. The processor's `sleep` and RNG are injectable, and the producer test mocks `ioredis`/`bullmq` so it can assert the exact options passed to `queue.add`. Coverage:
+
+- `processor.test.ts` — success/failure branches and the simulated delay.
+- `producer.test.ts` — priority routing (1 vs 10), and the `attempts`/`backoff`/`removeOnComplete` config.
+- `shutdown.test.ts` — worker closes then exits 0, and both signals register.
+
+CI (`.github/workflows/ci.yml`) runs the build and tests on Node 20 and 22.
+
+## Deployment
+
+The `Dockerfile` is a multi-stage build (`node:22-alpine`, production deps only, runs as the non-root `node` user). The same image runs both roles with different commands:
+
 ```bash
 docker build -t queue-engine .
-# API and workers use the same image, different CMD
 docker run -e REDIS_HOST=your-redis queue-engine node dist/api/index.js
 docker run -e REDIS_HOST=your-redis queue-engine node dist/worker/index.js
 ```
 
-## Future Improvements
+There's also a `render.yaml` for a one-service (API) deploy on Render's free tier.
 
-- [ ] BullMQ Board UI for real-time queue monitoring and manual job retry
-- [ ] Rate limiter integration to respect downstream SMTP provider limits (e.g., SendGrid 100/s)
-- [ ] Cron-scheduled jobs for recurring tasks (daily digest emails)
-- [ ] Job deduplication via custom job IDs to prevent duplicate sends on retry storms
-- [ ] OpenTelemetry spans bridging API request to enqueue to worker processing for end-to-end tracing
+## Where this would go next
 
-## Deep-Dive Architecture
+This is a demo, so a few things are intentionally left out. If it were headed for production:
 
-For a complete system design breakdown with detailed Mermaid.js diagrams, visit the [System Design Portal](https://sudhanshu1402.github.io/system-design-portal/queue-engine).
+| Dimension | Here | Production path |
+|---|---|---|
+| **Throughput** | Single worker, concurrency 10 | Add workers linearly; BullMQ's own benchmarks put a worker in the thousands-of-jobs/s range before Redis becomes the limit |
+| **Persistence** | Single Redis, AOF | Redis Sentinel/Cluster, or a managed service (ElastiCache, Upstash) |
+| **Observability** | Console logs | OpenTelemetry spans across API → enqueue → worker (see [otel-sdk-node](https://github.com/sudhanshu1402/otel-sdk-node)) |
+| **Backpressure** | None | BullMQ rate limiter to respect downstream provider limits |
+| **Dead letters** | BullMQ failed set | A consumer on the failed set with alerting |
+
+Other ideas: a BullMQ Board UI for monitoring and manual retry, cron-scheduled jobs, and job deduplication via custom IDs to avoid duplicate sends during retry storms.
+
+## Deep-dive
+
+A fuller system-design write-up with diagrams lives at the [System Design Portal](https://sudhanshu1402.github.io/system-design-portal/queue-engine).
 
 ## License
 
-MIT
-
+MIT — see [LICENSE](LICENSE).
