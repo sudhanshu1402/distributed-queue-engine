@@ -89,6 +89,7 @@ Jest, no live Redis. The processor's `sleep` and RNG are injectable and the prod
 Multi-stage `Dockerfile` on `node:22-alpine`, production deps only, non-root user. One image runs both roles:
 
 ```bash
+docker build -t queue-engine .
 docker run -e REDIS_HOST=your-redis queue-engine node dist/api/index.js
 docker run -e REDIS_HOST=your-redis queue-engine node dist/worker/index.js
 ```
