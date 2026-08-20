@@ -2,7 +2,9 @@
   "name": "distributed-queue-engine",
   "version": "1.0.0",
   "description": "Redis + BullMQ background job engine demo: priority queues, exponential-backoff retries, and horizontally scalable workers.",
-  "main": "index.js",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "api:dev": "nodemon -w src --ext ts --exec ts-node src/api/index.ts",
     "api:start": "node dist/api/index.js",
@@ -11,8 +13,16 @@
     "build": "tsc",
     "test": "jest"
   },
-  "keywords": [],
-  "author": "",
+  "keywords": [
+    "bullmq",
+    "redis",
+    "job-queue",
+    "distributed-systems",
+    "backend",
+    "nodejs",
+    "typescript"
+  ],
+  "author": "Sudhanshu Singh",
   "license": "MIT",
   "dependencies": {
     "bullmq": "^5.81.2",
