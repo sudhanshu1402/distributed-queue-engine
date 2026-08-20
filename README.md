@@ -55,7 +55,7 @@ graph TB
 
 ## What happens when things break
 
-Transient failure retries with backoff (3 attempts: 5s, 10s, 20s), then lands in BullMQ's failed set. A worker that crashes mid-job has it returned by stalled-job recovery. Redis restart replays from AOF. API crash doesn't matter, workers keep draining. `SIGINT`/`SIGTERM` call `worker.close()` so a rolling deploy drains in-flight jobs instead of dropping them.
+Transient failure retries with backoff, then lands in BullMQ's failed set. `attempts: 3` means two retries, and BullMQ's exponential strategy is `2^(attemptsMade-1) * delay`, so with a 5s delay you wait 5s then 10s before the third and last try. A worker that crashes mid-job has it returned by stalled-job recovery. Redis restart replays from AOF. API crash doesn't matter, workers keep draining. `SIGINT`/`SIGTERM` call `worker.close()` behind a 15s cap, so a rolling deploy drains in-flight jobs instead of dropping them, and a close that hangs still exits rather than waiting for SIGKILL.
 
 ## Run it
 

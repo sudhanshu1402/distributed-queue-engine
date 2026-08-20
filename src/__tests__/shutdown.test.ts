@@ -11,6 +11,24 @@ describe('graceful shutdown', () => {
     expect(exit).toHaveBeenCalledWith(0);
   });
 
+  it('exits non-zero when close rejects instead of leaving the promise unhandled', async () => {
+    const close = jest.fn().mockRejectedValue(new Error('redis gone'));
+    const exit = jest.fn();
+
+    await gracefulShutdown({ close }, exit);
+
+    expect(exit).toHaveBeenCalledWith(1);
+  });
+
+  it('exits non-zero when close never settles, rather than hanging until SIGKILL', async () => {
+    const close = jest.fn().mockReturnValue(new Promise<void>(() => {}));
+    const exit = jest.fn();
+
+    await gracefulShutdown({ close }, exit, 20);
+
+    expect(exit).toHaveBeenCalledWith(1);
+  });
+
   it('registers both SIGINT and SIGTERM by default', () => {
     const close = jest.fn().mockResolvedValue(undefined);
     const spy = jest.spyOn(process, 'on');
