@@ -1,4 +1,10 @@
-# distributed-queue-engine
+<h1>
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/sudhanshu1402/distributed-queue-engine/main/assets/banner-dark.svg" />
+  <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/sudhanshu1402/distributed-queue-engine/main/assets/banner-light.svg" />
+  <img src="https://raw.githubusercontent.com/sudhanshu1402/distributed-queue-engine/main/assets/banner-dark.svg" width="100%" alt="distributed-queue-engine: Redis and BullMQ background jobs. reference implementation, simulated worker I/O. The failure it exists for: a 2 second email holds the connection. enqueue, return 202. workers do the slow part." />
+</picture>
+</h1>
 
 [![CI](https://github.com/sudhanshu1402/distributed-queue-engine/actions/workflows/ci.yml/badge.svg)](https://github.com/sudhanshu1402/distributed-queue-engine/actions/workflows/ci.yml) [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
