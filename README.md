@@ -8,15 +8,11 @@
 
 [![CI](https://github.com/sudhanshu1402/distributed-queue-engine/actions/workflows/ci.yml/badge.svg)](https://github.com/sudhanshu1402/distributed-queue-engine/actions/workflows/ci.yml) [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-A Redis + BullMQ background job engine: priority-aware queuing, exponential-backoff retries, and workers that scale independently of the API. It exists to get slow I/O off the request path.
+![distributed-queue-engine at a glance: Redis and BullMQ, slow SMTP blocks the request, 202 hands off to a worker, the test suite passes with no live Redis](https://raw.githubusercontent.com/sudhanshu1402/distributed-queue-engine/main/assets/glance.svg)
 
-The worker simulates its I/O on purpose. `src/worker/processor.ts` is a `setTimeout` plus a ~20% random failure, so retries, priority routing, and scaling can be exercised end to end without a live SMTP provider. Swap `createEmailProcessor` for a real send and the plumbing is unchanged.
+A Redis + BullMQ background job engine: priority-aware queuing, exponential-backoff retries, workers that scale independently of the API. The problem it solves: a slow password-reset email (the processor simulates 1.5s of I/O) holds the request open. Enqueue instead, return `202` immediately, let a worker send it.
 
-## The problem
-
-A password-reset email that takes 2s holds the connection open, drags p99 up, and turns a slow SMTP provider into a slow API. Under load it compounds.
-
-Enqueue instead: the API returns `202` in under a millisecond, and workers do the slow part on their own schedule, on their own machines.
+`src/worker/processor.ts` simulates the send (`setTimeout` plus a ~20% random failure) so retries and priority routing run end to end with no live SMTP provider. Swap `createEmailProcessor` for a real send and the plumbing is unchanged. **Redis is required to run this for real** (Docker, see [Run it](#run-it)); the proof on this page is the offline test suite below, not a live run.
 
 ## Architecture
 
@@ -45,17 +41,15 @@ graph TB
 
 `src/api` and `src/worker` are separate entry points sharing only the queue definition and Redis config. Separate processes, separate containers in production.
 
-## Three decisions worth reading
+| Decision | Why |
+|---|---|
+| Queue name `{emails}:outbound` | hash tag pins every key to one Redis Cluster slot, for a later multi-node move |
+| API and worker are separate processes | scale workers for throughput without touching the API tier |
+| Priority 1 (reset) vs 10 (other) | BullMQ's sorted-set queue drains the urgent ones first |
+| `attempts: 3`, exponential backoff, 5s base | two retries at 5s then 10s before the failed set |
+| `SIGINT`/`SIGTERM` call `worker.close()`, 15s cap | a rolling deploy drains in-flight jobs instead of dropping them |
 
-**Cluster-ready queue names.** The queue is `{emails}:outbound`. That hash tag forces every key for the queue onto one Redis Cluster hash slot, which is what BullMQ's multi-key Lua scripts need if you ever move off a single node. Costs nothing now, saves a migration later.
-
-**Process isolation.** API and workers are independent OS processes with separate npm scripts and separate `CMD`s. Scale workers for throughput without touching the API tier.
-
-**Priority routing.** Password resets enqueue at priority 1, everything else at 10. BullMQ's sorted-set queue drains the urgent ones first.
-
-## What happens when things break
-
-Transient failure retries with backoff, then lands in BullMQ's failed set. `attempts: 3` means two retries, and BullMQ's exponential strategy is `2^(attemptsMade-1) * delay`, so with a 5s delay you wait 5s then 10s before the third and last try. A worker that crashes mid-job has it returned by stalled-job recovery. Redis restart replays from AOF. API crash doesn't matter, workers keep draining. `SIGINT`/`SIGTERM` call `worker.close()` behind a 15s cap, so a rolling deploy drains in-flight jobs instead of dropping them, and a close that hangs still exits rather than waiting for SIGKILL.
+Full reasoning, plus what happens on a worker crash, a Redis restart, and a close that hangs, in [docs/DECISIONS.md](docs/DECISIONS.md).
 
 ## Run it
 
@@ -74,7 +68,7 @@ curl -X POST http://localhost:3000/api/users/reset-password \
 # -> {"message":"Password reset initiated asynchronously","jobId":"1"}
 ```
 
-The worker logs each pickup, completion, and failure. Since the processor fails ~20% of the time by design, you'll watch retries back off and the occasional job exhaust its attempts. Config is env vars, see `.env.example`.
+The worker logs each pickup, completion, and failure; since the processor fails ~20% by design, you'll see retries back off. Config is env vars, see `.env.example`.
 
 ## Tests
 
@@ -82,11 +76,13 @@ The worker logs each pickup, completion, and failure. Since the processor fails 
 npm test
 ```
 
-Jest, no live Redis. The processor's `sleep` and RNG are injectable and the producer test mocks `ioredis`/`bullmq`, so it asserts the exact options passed to `queue.add`. Three files cover the success/failure branches, priority routing with retry config, and clean shutdown on both signals. CI runs Node 20 and 22.
+![jest tests pass with no live Redis: retryable failure, 3-attempt exponential backoff, priority routing and graceful shutdown](https://raw.githubusercontent.com/sudhanshu1402/distributed-queue-engine/main/assets/demo.svg)
+
+Jest, no live Redis: the processor's `sleep`/RNG are injectable, the producer test mocks `ioredis`/`bullmq` and asserts the exact retry, backoff and priority options passed to `queue.add`. CI runs Node 20 and 22; `npm run assets` regenerates the images above from that same output.
 
 ## Deploy
 
-Multi-stage `Dockerfile` on `node:22-alpine`, production deps only, non-root user. One image runs both roles:
+Multi-stage `Dockerfile`, `node:22-alpine`, non-root user. One image runs both roles:
 
 ```bash
 docker build -t queue-engine .
