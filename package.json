@@ -11,7 +11,8 @@
     "worker:dev": "nodemon -w src --ext ts --exec ts-node src/worker/index.ts",
     "worker:start": "node dist/worker/index.js",
     "build": "tsc",
-    "test": "jest"
+    "test": "jest",
+    "assets": "node scripts/make-readme-svg.mjs"
   },
   "keywords": [
     "bullmq",
