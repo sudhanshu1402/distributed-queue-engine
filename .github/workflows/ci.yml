@@ -26,3 +26,19 @@ jobs:
     - run: npm test
     - name: README diagrams are current
       run: npm run assets && git add -A -N assets/ && git diff --exit-code assets/
+
+  docker:
+    name: Docker image builds
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v7
+    - name: Build image
+      run: docker build -t distributed-queue-engine:ci .
+    - name: Built image contains the API entrypoint
+      run: |
+        docker run --rm --entrypoint node distributed-queue-engine:ci \
+          -e "require('node:fs').accessSync('dist/api/index.js')"
+    - name: Built image contains the worker entrypoint
+      run: |
+        docker run --rm --entrypoint node distributed-queue-engine:ci \
+          -e "require('node:fs').accessSync('dist/worker/index.js')"
