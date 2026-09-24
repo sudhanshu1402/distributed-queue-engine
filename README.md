@@ -19,7 +19,7 @@ A Redis + BullMQ background job engine: priority-aware queuing, exponential-back
 ```mermaid
 graph TB
     Client[Client Request] --> API[Express API Server]
-    API -->|"enqueue < 1ms"| Redis[(Redis + AOF Persistence)]
+    API -->|enqueue| Redis[(Redis + AOF Persistence)]
     Redis --> W1[Worker Process 1]
     Redis --> W2[Worker Process 2]
     Redis --> WN[Worker Process N]
