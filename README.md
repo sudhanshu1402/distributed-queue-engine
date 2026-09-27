@@ -1,14 +1,10 @@
-<h1>
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/sudhanshu1402/distributed-queue-engine/main/assets/banner-dark.svg" />
-  <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/sudhanshu1402/distributed-queue-engine/main/assets/banner-light.svg" />
-  <img src="https://raw.githubusercontent.com/sudhanshu1402/distributed-queue-engine/main/assets/banner-dark.svg" width="100%" alt="distributed-queue-engine: Redis and BullMQ background jobs. reference implementation, simulated worker I/O. The failure it exists for: a 2 second email holds the connection. enqueue, return 202. workers do the slow part." />
-</picture>
-</h1>
+<div align="center">
+
+<img src="https://raw.githubusercontent.com/sudhanshu1402/distributed-queue-engine/main/assets/hero.svg" width="100%" alt="distributed-queue-engine as a metro map: API returns 202 at once, the job waits in Redis on {emails}:outbound, workers send it to SMTP off the request path, retrying at 5 s then 10 s, and after 3 attempts it lands in the failed set. Priority 1 password resets drain before priority 10." />
 
 [![CI](https://github.com/sudhanshu1402/distributed-queue-engine/actions/workflows/ci.yml/badge.svg)](https://github.com/sudhanshu1402/distributed-queue-engine/actions/workflows/ci.yml) [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-![distributed-queue-engine at a glance: Redis and BullMQ, slow SMTP blocks the request, 202 hands off to a worker, the test suite passes with no live Redis](https://raw.githubusercontent.com/sudhanshu1402/distributed-queue-engine/main/assets/glance.svg)
+</div>
 
 A Redis + BullMQ background job engine: priority-aware queuing, exponential-backoff retries, workers that scale independently of the API. The problem it solves: a slow password-reset email (the processor simulates 1.5s of I/O) holds the request open. Enqueue instead, return `202` immediately, let a worker send it.
 
@@ -103,6 +99,10 @@ docker run -e REDIS_HOST=your-redis queue-engine node dist/worker/index.js
 ## Deep-dive
 
 Fuller write-up with diagrams at the [System Design Portal](https://sudhanshu1402.github.io/system-design-portal/queue-engine).
+
+---
+
+<sub>Part of [sudhanshu1402](https://github.com/sudhanshu1402)'s work: [keel](https://github.com/sudhanshu1402/keel) · [nocap](https://github.com/sudhanshu1402/nocap) · [receipts](https://github.com/sudhanshu1402/receipts) · [enterprise-auth-stack](https://github.com/sudhanshu1402/enterprise-auth-stack) · **distributed-queue-engine** · [multi-region-mongo-patterns](https://github.com/sudhanshu1402/multi-region-mongo-patterns) · [otel-sdk-node](https://github.com/sudhanshu1402/otel-sdk-node) · [llm-assessment-pipeline](https://github.com/sudhanshu1402/llm-assessment-pipeline). Write-ups on the [System Design Portal](https://sudhanshu1402.github.io/system-design-portal/).</sub>
 
 ## License
 
