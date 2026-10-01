@@ -26,7 +26,7 @@
   "author": "Sudhanshu Singh",
   "license": "MIT",
   "dependencies": {
-    "bullmq": "^5.81.4",
+    "bullmq": "^5.81.5",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "ioredis": "^5.10.0",
@@ -36,9 +36,9 @@
   "devDependencies": {
     "@types/express": "^5.0.6",
     "@types/jest": "^30.0.0",
-    "@types/node": "^25.9.5",
-    "jest": "^30.5.0",
+    "@types/node": "^25.9.8",
+    "jest": "^30.5.2",
     "nodemon": "^3.1.14",
-    "ts-jest": "^29.4.12"
+    "ts-jest": "^29.4.14"
   }
 }
